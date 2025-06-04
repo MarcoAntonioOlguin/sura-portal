@@ -14,3 +14,8 @@ class ProveedorViewSet(viewsets.ModelViewSet):
         if self.action in ["list", "retrieve"]:
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), IsColocador()]
+# core/views.py
+from django.http import HttpResponse
+
+def index(request):
+    return HttpResponse("Bienvenido a la sección core")

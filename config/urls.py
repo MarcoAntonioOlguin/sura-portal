@@ -10,9 +10,9 @@ router.register(r"proveedores", ProveedorViewSet, basename="proveedor")
 router.register(r"solicitudes", SolicitudCompraViewSet, basename="solicitud")
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
-    # Auth endpoints (login para obtener token)
-    path("api/auth/login/", obtain_auth_token, name="api_token_auth"),
-    # Rutas de las apps
-    path("api/", include(router.urls)),
+    path('admin/', admin.site.urls),
+    path('api/auth/login/', include('rest_framework.authtoken.views.obtain_auth_token'), name='api_token_auth'),
+    path('api/', include('api.urls')),
+    path('', include('core.urls')),  # <— esto agrega la ruta raíz
 ]
+
