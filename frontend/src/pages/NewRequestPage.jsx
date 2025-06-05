@@ -1,181 +1,264 @@
 // src/pages/NewRequestPage.jsx
-import React, { useState, useEffect } from "react";
+import React from "react";
+import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import * as yup from "yup";
+import {
+  Container,
+  Typography,
+  TextField,
+  Button,
+  Box,
+  MenuItem,
+  Select,
+  InputLabel,
+  FormControl,
+  IconButton,
+  Grid,
+  Paper,
+} from "@mui/material";
+import { AddCircleOutline, RemoveCircleOutline } from "@mui/icons-material";
 import { getProviders } from "../api/providers";
 import { createRequest } from "../api/requests";
 import { useNavigate } from "react-router-dom";
 
-const NewRequestPage = () => {
-  const [providers, setProviders] = useState([]);
-  const [selectedProvider, setSelectedProvider] = useState("");
-  const [items, setItems] = useState([
-    { product_link: "", quantity: 1, unit_price: 0 },
-  ]);
-  const [error, setError] = useState(null);
-  const navigate = useNavigate();
+// 4.1. Definir esquema de validación de solicitud
+const itemSchema = yup.object().shape({
+  product_link: yup.string().url("Debe ser una URL válida").required("Obligatorio"),
+  quantity: yup
+    .number()
+    .typeError("Debe ser un número")
+    .positive("Mayor que 0")
+    .required("Obligatorio"),
+  unit_price: yup
+    .number()
+    .typeError("Debe ser un número")
+    .positive("Mayor que 0")
+    .required("Obligatorio"),
+});
 
-  // Cargar lista de proveedores para seleccionar
-  useEffect(() => {
+const requestSchema = yup.object().shape({
+  provider: yup.number().required("Debes seleccionar un proveedor"),
+  items: yup
+    .array()
+    .of(itemSchema)
+    .min(1, "Debe haber al menos un ítem"),
+});
+
+const NewRequestPage = () => {
+  const navigate = useNavigate();
+  const [providersList, setProvidersList] = React.useState([]);
+
+  // 4.2. useForm con defaultValues e inicializar items con un array vacío
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: yupResolver(requestSchema),
+    defaultValues: {
+      provider: "",
+      items: [{ product_link: "", quantity: "", unit_price: "" }],
+    },
+    mode: "onBlur",
+  });
+
+  // 4.3. useFieldArray para manejar dinámicamente la lista de ítems
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "items",
+  });
+
+  React.useEffect(() => {
     (async () => {
       try {
         const data = await getProviders();
-        setProviders(data);
+        setProvidersList(data);
       } catch {
-        setError("No se pudieron cargar proveedores");
+        console.error("No se pudieron cargar proveedores");
       }
     })();
   }, []);
 
-  // Función para actualizar campos de un ítem
-  const handleItemChange = (index, field, value) => {
-    const newItems = [...items];
-    newItems[index][field] = field === "quantity" || field === "unit_price"
-      ? Number(value)
-      : value;
-    setItems(newItems);
-  };
-
-  // Agregar línea de producto
-  const addItem = () => {
-    setItems([...items, { product_link: "", quantity: 1, unit_price: 0 }]);
-  };
-
-  // Eliminar línea de producto
-  const removeItem = (index) => {
-    const newItems = items.filter((_, i) => i !== index);
-    setItems(newItems);
-  };
-
-  // Calcular total
-  const totalAmount = items.reduce(
-    (sum, item) => sum + item.quantity * item.unit_price,
-    0
-  );
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedProvider) {
-      setError("Debes seleccionar un proveedor");
-      return;
-    }
-    if (items.length === 0) {
-      setError("Debe haber al menos un producto");
-      return;
-    }
-    // Validar que cada ítem tenga product_link, quantity>0, unit_price>0
-    for (const item of items) {
-      if (!item.product_link || item.quantity <= 0 || item.unit_price <= 0) {
-        setError("Cada ítem debe tener enlace, cantidad (>0) y precio unitario (>0)");
-        return;
-      }
-    }
-
+  const onSubmit = async (formData) => {
     try {
-      await createRequest({
-        provider: selectedProvider,
-        items: items,
-      });
+      // Transformar strings numéricos a number
+      const payload = {
+        provider: Number(formData.provider),
+        items: formData.items.map((item) => ({
+          product_link: item.product_link,
+          quantity: Number(item.quantity),
+          unit_price: Number(item.unit_price),
+        })),
+      };
+      await createRequest(payload);
       navigate("/requests");
     } catch (err) {
-      setError("Error al crear la solicitud");
+      console.error(err);
     }
   };
 
   return (
-    <div style={{ padding: "2rem" }}>
-      <h2>Crear Nueva Solicitud de Compra</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <Container maxWidth="md" sx={{ mt: 4 }}>
+      <Typography variant="h4" gutterBottom>
+        Crear Nueva Solicitud de Compra
+      </Typography>
 
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label>Proveedor:</label>
-          <select
-            value={selectedProvider}
-            onChange={(e) => setSelectedProvider(e.target.value)}
-            required
-          >
-            <option value="">--Selecciona--</option>
-            {providers.map((prov) => (
-              <option key={prov.id} value={prov.id}>
-                {prov.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      <Box
+        component="form"
+        noValidate
+        onSubmit={handleSubmit(onSubmit)}
+        sx={{ display: "flex", flexDirection: "column", gap: 3 }}
+      >
+        {/* Selección de Proveedor */}
+        <FormControl fullWidth error={Boolean(errors.provider)}>
+          <InputLabel id="provider-label">Proveedor</InputLabel>
+          <Controller
+            name="provider"
+            control={control}
+            render={({ field }) => (
+              <Select
+                {...field}
+                labelId="provider-label"
+                label="Proveedor"
+                fullWidth
+              >
+                <MenuItem value="">
+                  <em>Selecciona</em>
+                </MenuItem>
+                {providersList.map((prov) => (
+                  <MenuItem key={prov.id} value={prov.id}>
+                    {prov.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            )}
+          />
+          {errors.provider && (
+            <Typography variant="caption" color="error">
+              {errors.provider.message}
+            </Typography>
+          )}
+        </FormControl>
 
-        <h4>Productos</h4>
-        {items.map((item, index) => (
-          <div
-            key={index}
-            style={{
-              border: "1px solid #ccc",
-              padding: "1rem",
-              marginBottom: "1rem",
-            }}
-          >
-            <div>
-              <label>Enlace del Producto:</label>
-              <input
-                type="text"
-                value={item.product_link}
-                onChange={(e) =>
-                  handleItemChange(index, "product_link", e.target.value)
-                }
-                required
-              />
-            </div>
-            <div>
-              <label>Cantidad:</label>
-              <input
-                type="number"
-                min="1"
-                value={item.quantity}
-                onChange={(e) =>
-                  handleItemChange(index, "quantity", e.target.value)
-                }
-                required
-              />
-            </div>
-            <div>
-              <label>Precio Unitario:</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={item.unit_price}
-                onChange={(e) =>
-                  handleItemChange(index, "unit_price", e.target.value)
-                }
-                required
-              />
-            </div>
-            <div>
-              <button type="button" onClick={() => removeItem(index)}>
-                Eliminar Ítem
-              </button>
-            </div>
-          </div>
+        {/* Lista dinámica de ítems */}
+        <Typography variant="h6">Productos</Typography>
+        {fields.map((item, index) => (
+          <Paper key={item.id} sx={{ p: 2, mb: 2 }}>
+            <Grid container spacing={2} alignItems="center">
+              {/* Link de Producto */}
+              <Grid item xs={12} sm={5}>
+                <Controller
+                  name={`items.${index}.product_link`}
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Enlace del Producto"
+                      variant="outlined"
+                      fullWidth
+                      error={Boolean(
+                        errors.items?.[index]?.product_link
+                      )}
+                      helperText={errors.items?.[index]?.product_link
+                        ?.message}
+                    />
+                  )}
+                />
+              </Grid>
+
+              {/* Cantidad */}
+              <Grid item xs={6} sm={2}>
+                <Controller
+                  name={`items.${index}.quantity`}
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Cantidad"
+                      type="number"
+                      variant="outlined"
+                      fullWidth
+                      error={Boolean(errors.items?.[index]?.quantity)}
+                      helperText={errors.items?.[index]?.quantity?.message}
+                    />
+                  )}
+                />
+              </Grid>
+
+              {/* Precio Unitario */}
+              <Grid item xs={6} sm={3}>
+                <Controller
+                  name={`items.${index}.unit_price`}
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Precio Unitario"
+                      type="number"
+                      variant="outlined"
+                      fullWidth
+                      error={Boolean(
+                        errors.items?.[index]?.unit_price
+                      )}
+                      helperText={errors.items?.[index]?.unit_price
+                        ?.message}
+                    />
+                  )}
+                />
+              </Grid>
+
+              {/* Botón Eliminar */}
+              <Grid item xs={12} sm={2} textAlign="center">
+                <IconButton
+                  color="error"
+                  disabled={fields.length === 1}
+                  onClick={() => remove(index)}
+                >
+                  <RemoveCircleOutline />
+                </IconButton>
+              </Grid>
+            </Grid>
+          </Paper>
         ))}
 
-        <button type="button" onClick={addItem}>
-          + Agregar Producto
-        </button>
-
-        <div style={{ marginTop: "1rem" }}>
-          <strong>Total: </strong>${totalAmount.toFixed(2)}
-        </div>
-
-        <button type="submit" style={{ marginTop: "1rem" }}>
-          Enviar Solicitud
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate("/requests")}
-          style={{ marginLeft: "1rem" }}
+        <Button
+          variant="outlined"
+          startIcon={<AddCircleOutline />}
+          onClick={() =>
+            append({ product_link: "", quantity: "", unit_price: "" })
+          }
         >
-          Cancelar
-        </button>
-      </form>
-    </div>
+          Agregar Producto
+        </Button>
+
+        {/* Mostrar error si no hay ítems */}
+        {errors.items && typeof errors.items.message === "string" && (
+          <Typography variant="caption" color="error">
+            {errors.items.message}
+          </Typography>
+        )}
+
+        {/* Botones de acción */}
+        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3 }}>
+          <Button
+            variant="contained"
+            color="primary"
+            type="submit"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Enviando..." : "Enviar Solicitud"}
+          </Button>
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={() => navigate("/requests")}
+          >
+            Cancelar
+          </Button>
+        </Box>
+      </Box>
+    </Container>
   );
 };
 

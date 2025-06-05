@@ -3,5 +3,5 @@ from .models import Proveedor
 
 @admin.register(Proveedor)
 class ProveedorAdmin(admin.ModelAdmin):
-    list_display = ["nombre", "contacto", "partnership_activa"]
-    search_fields = ["nombre", "contacto"]
+    list_display = ["name", "contact", "address","partnership"]
+    search_fields = ["name", "contact"]
