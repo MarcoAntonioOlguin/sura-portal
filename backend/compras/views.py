@@ -72,3 +72,9 @@ class SolicitudCompraViewSet(viewsets.ModelViewSet):
         solicitud.estado = "rechazada"
         solicitud.save()
         return Response({"status": "rechazada"}, status=status.HTTP_200_OK)
+# your_app/views.py
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .serializers import MyTokenObtainPairSerializer
+
+class MyTokenObtainPairView(TokenObtainPairView):
+    serializer_class = MyTokenObtainPairSerializer

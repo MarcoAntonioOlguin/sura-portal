@@ -54,3 +54,14 @@ class SolicitudCompraSerializer(serializers.ModelSerializer):
         # No permitimos cambiar proveedor ni colocador ni estado en update normal
         instance.save()
         return instance
+# your_app/serializers.py
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        # Añadimos campos personalizados
+        token["username"] = user.username
+        token["is_superuser"] = user.is_superuser
+        return token
